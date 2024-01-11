@@ -1,30 +1,26 @@
-import { UserModel } from "../daos/mongoDB/models/user.model.js";
-import { createHash, isValidPass } from "../utils.js";
+import Services from "./class.services.js";
+import UserMongoDao from "../daos/mongodb/users/user.dao.js";
+const userDao = new UserMongoDao();
+import jwt from "jsonwebtoken";
+import "dotenv/config";
 
-export default class UserServices {
-  async findByEmail(email) {
-    return await UserModel.findOne({ email });
+const SECRET_KEY_JWT = process.env.SECRET_KEY_JWT;
+
+export default class UserService extends Services {
+  constructor() {
+    super(userDao);
+  }
+
+  #generateToken(user) {
+    const payload = {
+      userId: user._id,
+    };
+    return jwt.sign(payload, SECRET_KEY_JWT, { expiresIn: "10m" });
   }
 
   async register(user) {
     try {
-      const { email, password } = user;
-
-      if (email === 'adminCoder@coder.com' && password === 'adminCod3r123') {
-        const adminUser = await UserModel.create({ ...user, role: 'admin' });
-        return adminUser;
-      }
-
-      const exists = await this.findByEmail(email);
-      if (!exists) {
-        const newUser = await UserModel.create({
-          ...user,
-          password: createHash(password)
-        });
-        return newUser;
-      } else {
-        return false;
-      }
+      return await userDao.register(user);
     } catch (error) {
       console.log(error);
     }
@@ -32,16 +28,11 @@ export default class UserServices {
 
   async login(user) {
     try {
-      const { email, password } = user;
-      const userExist = await UserModel.findOne({ email });
-      if (userExist) {
-        const isValid = isValidPass(password, userExist);
-        console.log('isValid? =>', isValid);
-        if (!isValid) return false;
-        else return userExist;
-      } return false;
+      const userExist = await userDao.login(user);
+      if(userExist) return this.#generateToken(userExist);
+      else return false;
     } catch (error) {
       console.log(error);
     }
   }
-};
+}
